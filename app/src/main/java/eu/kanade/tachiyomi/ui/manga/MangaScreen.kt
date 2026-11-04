@@ -114,6 +114,9 @@ class MangaScreen(
             }
 
         val state by viewModel.state.collectAsStateWithLifecycle()
+        // SY -->
+        val recommendationPreview by viewModel.recommendationPreview.collectAsStateWithLifecycle()
+        // SY <--
 
         if (state is MangaViewModel.State.Loading) {
             LoadingScreen()
@@ -237,6 +240,14 @@ class MangaScreen(
                 openPagePreview(context, successState.chapters.minByOrNull { it.chapter.sourceOrder }?.chapter, it)
             },
             onMorePreviewsClicked = { openMorePagePreviews(navigator, successState.manga) },
+            recommendationPreviewState = recommendationPreview,
+            onRelatedMangaClicked = {
+                if (it.source == -1L) {
+                    navigator.push(SourcesScreen(SourcesScreen.SmartSearchConfig(it.ogTitle)))
+                } else {
+                    navigator.push(MangaScreen(it.id, true))
+                }
+            },
             // SY <--
             onMultiBookmarkClicked = viewModel::bookmarkChapters,
             onMultiMarkAsReadClicked = viewModel::markChaptersRead,

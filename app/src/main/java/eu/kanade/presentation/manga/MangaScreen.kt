@@ -28,6 +28,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.animateFloatingActionButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -43,9 +44,11 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastAll
 import androidx.compose.ui.util.fastAny
 import androidx.compose.ui.util.fastMap
+import eu.kanade.presentation.browse.components.GlobalSearchResultItem
 import eu.kanade.presentation.components.relativeDateText
 import eu.kanade.presentation.manga.components.ChapterDownloadAction
 import eu.kanade.presentation.manga.components.ChapterHeader
@@ -79,6 +82,8 @@ import eu.kanade.tachiyomi.ui.manga.MergedMangaData
 import eu.kanade.tachiyomi.ui.manga.PagePreviewState
 import eu.kanade.tachiyomi.util.system.copyToClipboard
 import exh.metadata.MetadataUtil
+import exh.recs.components.RecommendationPreviewRow
+import exh.recs.components.RecommendationPreviewState
 import exh.source.MERGED_SOURCE_ID
 import exh.source.getMainSource
 import exh.source.isEhBasedManga
@@ -98,8 +103,10 @@ import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.source.model.StubSource
 import tachiyomi.i18n.MR
+import tachiyomi.i18n.sy.SYMR
 import tachiyomi.presentation.core.components.TwoPanelBox
 import tachiyomi.presentation.core.components.VerticalFastScroller
+import tachiyomi.presentation.core.components.material.Button
 import tachiyomi.presentation.core.components.material.PullRefresh
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.i18n.stringResource
@@ -155,6 +162,8 @@ fun MangaScreen(
     onOpenPagePreview: (Int) -> Unit,
     onMorePreviewsClicked: () -> Unit,
     previewsRowCount: Int,
+    recommendationPreviewState: RecommendationPreviewState,
+    onRelatedMangaClicked: (Manga) -> Unit,
     // SY <--
 
     // For bottom action menu
@@ -216,6 +225,8 @@ fun MangaScreen(
             onOpenPagePreview = onOpenPagePreview,
             onMorePreviewsClicked = onMorePreviewsClicked,
             previewsRowCount = previewsRowCount,
+            recommendationPreviewState = recommendationPreviewState,
+            onRelatedMangaClicked = onRelatedMangaClicked,
             // SY <--
             onMultiBookmarkClicked = onMultiBookmarkClicked,
             onMultiMarkAsReadClicked = onMultiMarkAsReadClicked,
@@ -264,6 +275,8 @@ fun MangaScreen(
             onOpenPagePreview = onOpenPagePreview,
             onMorePreviewsClicked = onMorePreviewsClicked,
             previewsRowCount = previewsRowCount,
+            recommendationPreviewState = recommendationPreviewState,
+            onRelatedMangaClicked = onRelatedMangaClicked,
             // SY <--
             onMultiBookmarkClicked = onMultiBookmarkClicked,
             onMultiMarkAsReadClicked = onMultiMarkAsReadClicked,
@@ -322,6 +335,8 @@ private fun MangaScreenSmallImpl(
     onOpenPagePreview: (Int) -> Unit,
     onMorePreviewsClicked: () -> Unit,
     previewsRowCount: Int,
+    recommendationPreviewState: RecommendationPreviewState,
+    onRelatedMangaClicked: (Manga) -> Unit,
     // SY <--
 
     // For bottom action menu
@@ -390,6 +405,7 @@ private fun MangaScreenSmallImpl(
                 onClickRecommend = onRecommendClicked.takeIf { state.showRecommendationsInOverflow },
                 onClickMergedSettings = onMergedSettingsClicked.takeIf { state.manga.source == MERGED_SOURCE_ID },
                 onClickMerge = onMergeClicked.takeIf { state.showMergeInOverflow },
+                showHomeOnRecommendations = state.showHomeOnRecommendations,
                 // SY <--
                 actionModeCounter = state.selectedChapters.size,
                 onCancelActionMode = { onAllChapterSelected(false) },
@@ -532,16 +548,29 @@ private fun MangaScreenSmallImpl(
                     }
 
                     // SY -->
-                    if (!state.showRecommendationsInOverflow || state.showMergeWithAnother) {
+                    if (state.showMergeWithAnother) {
                         item(
                             key = MangaScreenItem.INFO_BUTTONS,
                             contentType = MangaScreenItem.INFO_BUTTONS,
                         ) {
                             MangaInfoButtons(
-                                showRecommendsButton = !state.showRecommendationsInOverflow,
-                                showMergeWithAnotherButton = state.showMergeWithAnother,
+                                showRecommendsButton = false,
+                                showMergeWithAnotherButton = true,
                                 onRecommendClicked = onRecommendClicked,
                                 onMergeWithAnotherClicked = onMergeWithAnotherClicked,
+                            )
+                        }
+                    }
+
+                    if (!state.showRecommendationsInOverflow) {
+                        item(
+                            key = "recommendation_preview",
+                            contentType = "recommendation_preview",
+                        ) {
+                            RecommendationPreviewRow(
+                                state = recommendationPreviewState,
+                                onHeaderClicked = onRecommendClicked,
+                                onMangaClicked = onRelatedMangaClicked,
                             )
                         }
                     }
@@ -639,6 +668,8 @@ fun MangaScreenLargeImpl(
     onOpenPagePreview: (Int) -> Unit,
     onMorePreviewsClicked: () -> Unit,
     previewsRowCount: Int,
+    recommendationPreviewState: RecommendationPreviewState,
+    onRelatedMangaClicked: (Manga) -> Unit,
     // SY <--
 
     // For bottom action menu
@@ -698,6 +729,7 @@ fun MangaScreenLargeImpl(
                 onClickRecommend = onRecommendClicked.takeIf { state.showRecommendationsInOverflow },
                 onClickMergedSettings = onMergedSettingsClicked.takeIf { state.manga.source == MERGED_SOURCE_ID },
                 onClickMerge = onMergeClicked.takeIf { state.showMergeInOverflow },
+                showHomeOnRecommendations = state.showHomeOnRecommendations,
                 // SY <--
                 onCancelActionMode = { onAllChapterSelected(false) },
                 actionModeCounter = state.selectedChapters.size,
@@ -817,12 +849,19 @@ fun MangaScreenLargeImpl(
                             // SY <--
                         )
                         // SY -->
-                        if (!state.showRecommendationsInOverflow || state.showMergeWithAnother) {
+                        if (state.showMergeWithAnother) {
                             MangaInfoButtons(
-                                showRecommendsButton = !state.showRecommendationsInOverflow,
-                                showMergeWithAnotherButton = state.showMergeWithAnother,
+                                showRecommendsButton = false,
+                                showMergeWithAnotherButton = true,
                                 onRecommendClicked = onRecommendClicked,
                                 onMergeWithAnotherClicked = onMergeWithAnotherClicked,
+                            )
+                        }
+                        if (!state.showRecommendationsInOverflow) {
+                            RecommendationPreviewRow(
+                                state = recommendationPreviewState,
+                                onHeaderClicked = onRecommendClicked,
+                                onMangaClicked = onRelatedMangaClicked,
                             )
                         }
                         if (state.pagePreviewsState !is PagePreviewState.Unused && previewsRowCount > 0) {

@@ -11,11 +11,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.unit.dp
+import cafe.adriel.voyager.navigator.LocalNavigator
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.presentation.components.AppBarTitle
 import eu.kanade.presentation.components.DownloadDropdownMenu
 import eu.kanade.presentation.manga.DownloadAction
+import eu.kanade.tachiyomi.ui.manga.MangaScreen
+import exh.recs.BrowseRecommendsScreen
+import exh.recs.RecommendsScreen
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.Download
 import mihon.icons.materialsymbols.rounded.FilterList
@@ -43,6 +47,7 @@ fun MangaToolbar(
     onClickRecommend: (() -> Unit)?,
     onClickMerge: (() -> Unit)?,
     onClickMergedSettings: (() -> Unit)?,
+    showHomeOnRecommendations: Boolean = false,
     // SY <--
 
     // For action mode
@@ -55,6 +60,34 @@ fun MangaToolbar(
     backgroundAlphaProvider: () -> Float,
     modifier: Modifier = Modifier,
 ) {
+    // SY -->
+    val navigator = LocalNavigator.current
+    val originScreen = remember(navigator?.items) {
+        val items = navigator?.items ?: return@remember null
+        var trailStartIndex = -1
+        for (i in items.lastIndex downTo 0) {
+            val screen = items[i]
+            if (screen is MangaScreen || screen is RecommendsScreen || screen is BrowseRecommendsScreen) {
+                trailStartIndex = i
+            } else {
+                break
+            }
+        }
+        if (trailStartIndex in 0 until items.lastIndex) {
+            items[trailStartIndex]
+        } else {
+            null
+        }
+    }
+    val showHome = showHomeOnRecommendations && originScreen != null
+    val onHomeClicked = {
+        if (originScreen != null) {
+            navigator?.popUntil { it == originScreen }
+        }
+        Unit
+    }
+    // SY <--
+
     val isActionMode = actionModeCounter > 0
     AppBar(
         titleContent = {
@@ -68,6 +101,9 @@ fun MangaToolbar(
         backgroundColor = MaterialTheme.colorScheme
             .surfaceColorAtElevation(3.dp)
             .copy(alpha = if (isActionMode) 1f else backgroundAlphaProvider()),
+        // SY -->
+        goHome = { onHomeClicked() }.takeIf { showHome },
+        // SY <--
         navigateUp = navigateUp,
         actions = {
             var downloadExpanded by remember { mutableStateOf(false) }

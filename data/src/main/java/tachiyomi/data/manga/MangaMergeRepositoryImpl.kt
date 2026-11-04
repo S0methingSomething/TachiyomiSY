@@ -196,6 +196,7 @@ class MangaMergeRepositoryImpl(
                 updateTitle = mergedManga.ogTitle.isNotBlank(),
                 updateCover = !mergedManga.ogThumbnailUrl.isNullOrBlank(),
                 updateDetails = mergedManga.initialized,
+                updateInfo = true, // SY --> (Komikku: updateInfo param added to query)
                 mapper = MangaMapper::mapManga,
             ).awaitAsOne()
 

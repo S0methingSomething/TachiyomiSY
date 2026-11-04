@@ -15,6 +15,7 @@ import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactoryKey
 import eu.kanade.tachiyomi.data.track.TrackerManager
 import eu.kanade.tachiyomi.network.NetworkHelper
 import exh.pref.DelegateSourcePreferences
+import exh.pref.RecommendationPreferences
 import exh.recs.sources.RecommendationPagingSource
 import exh.recs.sources.StaticResultPagingSource
 import kotlinx.coroutines.Dispatchers
@@ -50,6 +51,7 @@ open class RecommendsViewModel(
     private val networkHelper: NetworkHelper,
     private val json: Json,
     private val delegateSourcePreferences: DelegateSourcePreferences,
+    private val recommendationPreferences: RecommendationPreferences,
 ) : ViewModel() {
 
     val state: StateFlow<State>
@@ -67,6 +69,7 @@ open class RecommendsViewModel(
     private val sortComparator = { map: Map<RecommendationPagingSource, RecommendationItemResult> ->
         compareBy<RecommendationPagingSource>(
             { (map[it] as? RecommendationItemResult.Success)?.isEmpty ?: true },
+            { it.orderIndex },
             { it.name },
             { it.category.resourceId },
         )
@@ -88,6 +91,7 @@ open class RecommendsViewModel(
                         networkHelper.client,
                         json,
                         delegateSourcePreferences,
+                        recommendationPreferences,
                     )
                 }
                 is RecommendsScreen.Args.MergedSourceMangas -> {

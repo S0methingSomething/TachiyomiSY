@@ -209,7 +209,7 @@ class MangaRepositoryImpl(
         }
     }
 
-    override suspend fun insertNetworkManga(manga: List<Manga>): List<Manga> {
+    override suspend fun insertNetworkManga(manga: List<Manga>, updateInfo: Boolean): List<Manga> { // SY --> (Komikku: updateInfo param)
         return database.transactionWithResult {
             manga.map {
                 database.mangaQueries.insertNetworkManga(
@@ -240,6 +240,9 @@ class MangaRepositoryImpl(
                     updateCover = !it.ogThumbnailUrl.isNullOrBlank(),
                     // SY <--
                     updateDetails = it.initialized,
+                    // SY --> (Komikku: updateInfo)
+                    updateInfo = updateInfo,
+                    // SY <--
                     mapper = MangaMapper::mapManga,
                 )
                     .awaitAsOne()

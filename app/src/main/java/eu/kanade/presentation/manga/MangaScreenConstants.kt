@@ -30,6 +30,7 @@ enum class MangaScreenItem {
     CHAPTER_PREVIEW_LOADING,
     CHAPTER_PREVIEW_ROW,
     CHAPTER_PREVIEW_MORE,
+    RELATED_MANGAS,
 
     // SY <--
     CHAPTER_HEADER,

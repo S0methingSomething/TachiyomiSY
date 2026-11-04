@@ -56,7 +56,15 @@ interface MangaRepository {
 
     suspend fun updateAll(mangaUpdates: List<MangaUpdate>): Boolean
 
-    suspend fun insertNetworkManga(manga: List<Manga>): List<Manga>
+    suspend fun insertNetworkManga(
+        manga: List<Manga>,
+        // SY -->
+        // Ported from Komikku (domain .../manga/repository/MangaRepository.kt, updateInfo param)
+        updateInfo: Boolean = true,
+        // SY <--
+    ): List<Manga>
+
+    // SY -->
 
     // SY -->
     suspend fun getMangaBySourceId(sourceId: Long): List<Manga>

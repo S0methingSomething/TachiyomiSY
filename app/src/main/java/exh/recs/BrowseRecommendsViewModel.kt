@@ -21,6 +21,7 @@ import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.ui.browse.source.browse.BrowseSourceViewModel
 import exh.metadata.metadata.RaisedSearchMetadata
 import exh.pref.DelegateSourcePreferences
+import exh.pref.RecommendationPreferences
 import exh.recs.sources.RecommendationPagingSource
 import exh.recs.sources.StaticResultPagingSource
 import exh.source.ExhPreferences
@@ -64,6 +65,7 @@ class BrowseRecommendsViewModel(
     private val networkHelper: NetworkHelper,
     private val json: Json,
     private val delegateSourcePreferences: DelegateSourcePreferences,
+    private val recommendationPreferences: RecommendationPreferences,
     sourceManager: SourceManager,
     sourcePreferences: SourcePreferences,
     libraryPreferences: LibraryPreferences,
@@ -145,6 +147,7 @@ class BrowseRecommendsViewModel(
                     networkHelper.client,
                     json,
                     delegateSourcePreferences,
+                    recommendationPreferences,
                 ).first {
                     it::class.qualifiedName == args.recommendationSourceName
                 }

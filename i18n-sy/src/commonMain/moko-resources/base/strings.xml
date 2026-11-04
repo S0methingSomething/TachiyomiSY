@@ -688,4 +688,34 @@ When this option is disabled, the gestures still work the same way, but those in
 
     <!-- Humanize time -->
     <string name="humanize_fallback">moments ago</string>
+
+    <!-- SY -->
+    <!-- Ported from Komikku (i18n-kmk base) -->
+    <string name="pref_source_related_mangas">Suggestions</string>
+    <string name="pref_source_related_mangas_summary">Show source-website\'s Suggestions while viewing entry</string>
+    <string name="pref_expand_related_mangas">Expand Suggestions</string>
+    <string name="pref_expand_related_mangas_summary">If turned off, Suggestions won\'t automatically load &amp; show expanded</string>
+    <string name="put_related_mangas_in_overflow">Suggestions in overflow</string>
+    <string name="put_related_mangas_in_overflow_summary">Put the Suggestions button in the overflow menu instead of on the entry page</string>
+    <string name="related_mangas_website_suggestions">Website Suggestions</string>
+    <string name="related_mangas_more">More like these...</string>
+
+    <string name="pref_recommendation_settings">Recommendations</string>
+    <string name="pref_recommendation_settings_summary">Configure recommendation providers, order, and auto-expand behavior</string>
+    <string name="rec_preview_title">Preview: How recommendations appear</string>
+    <string name="rec_preview_toggle_expand">Preview auto-expand</string>
+    <string name="rec_auto_expand_grid">Auto-expand into grid</string>
+    <string name="rec_provider_website">Website Suggestions</string>
+    <string name="rec_provider_website_desc">Suggestions directly from the source website</string>
+    <string name="rec_provider_anilist">AniList</string>
+    <string name="rec_provider_anilist_desc">Recommendations from tracked AniList account or search</string>
+    <string name="rec_provider_myanimelist">MyAnimeList</string>
+    <string name="rec_provider_myanimelist_desc">Recommendations from tracked MyAnimeList account or search</string>
+    <string name="rec_provider_mangaupdates_similar">MangaUpdates (Similar)</string>
+    <string name="rec_provider_mangaupdates_similar_desc">Titles with similar tags and genre from MangaUpdates</string>
+    <string name="rec_provider_mangaupdates_community">MangaUpdates (Community)</string>
+    <string name="rec_provider_mangaupdates_community_desc">Recommendations submitted by MangaUpdates users</string>
+    <string name="pref_show_home_on_related_mangas">Home button on Recommendations</string>
+    <string name="pref_show_home_on_related_mangas_summary">Show home button on entry top bar when navigating via Recommendations</string>
+    <string name="action_bar_home">Home</string>
 </resources>

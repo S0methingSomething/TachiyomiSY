@@ -15,6 +15,7 @@ import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.presentation.more.settings.screen.browse.ExtensionStoresScreen
 import eu.kanade.tachiyomi.ui.category.sources.SourceCategoryScreen
 import eu.kanade.tachiyomi.util.system.AuthenticatorUtil.authenticate
+import exh.recs.settings.RecommendationSettingsScreen
 import mihon.app.di.appGraph
 import mihon.domain.extension.model.ContentWarning
 import tachiyomi.core.common.i18n.stringResource
@@ -74,6 +75,13 @@ object SettingsBrowseScreen : SearchableSettings {
                         preference = sourcePreferences.allowLocalSourceHiddenFolders,
                         title = stringResource(SYMR.strings.pref_local_source_hidden_folders),
                         subtitle = stringResource(SYMR.strings.pref_local_source_hidden_folders_summery),
+                    ),
+                    Preference.PreferenceItem.TextPreference(
+                        title = stringResource(SYMR.strings.pref_recommendation_settings),
+                        subtitle = stringResource(SYMR.strings.pref_recommendation_settings_summary),
+                        onClick = {
+                            navigator.push(RecommendationSettingsScreen())
+                        },
                     ),
                 ),
             ),

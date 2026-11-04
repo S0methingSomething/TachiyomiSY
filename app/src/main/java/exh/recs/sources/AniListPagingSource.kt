@@ -60,12 +60,12 @@ class AniListPagingSource(
     }
 
     private fun getTitle(obj: JsonObject): String {
-        val titleObj = obj["title"]!!.jsonObject
+        val titleObj = obj["title"]?.jsonObject
 
-        val english = titleObj["english"]?.jsonPrimitive?.contentOrNull
-        val romaji = titleObj["romaji"]?.jsonPrimitive?.contentOrNull
-        val native = titleObj["native"]?.jsonPrimitive?.contentOrNull
-        val synonym = obj["synonyms"]!!.jsonArray.getOrNull(0)?.jsonPrimitive?.contentOrNull
+        val english = titleObj?.get("english")?.jsonPrimitive?.contentOrNull
+        val romaji = titleObj?.get("romaji")?.jsonPrimitive?.contentOrNull
+        val native = titleObj?.get("native")?.jsonPrimitive?.contentOrNull
+        val synonym = obj["synonyms"]?.jsonArray?.getOrNull(0)?.jsonPrimitive?.contentOrNull
 
         val isJP = obj["countryOfOrigin"]?.jsonPrimitive?.contentOrNull == "JP"
 
@@ -102,16 +102,22 @@ class AniListPagingSource(
             .ifEmpty { throw NoResultsException() }
             .filter()
 
-        return media.flatMap { it.jsonObject["recommendations"]!!.jsonObject["edges"]!!.jsonArray }.map {
-            val rec = it.jsonObject["node"]!!.jsonObject["mediaRecommendation"]!!.jsonObject
-            val recTitle = getTitle(rec)
-            logcat { "ANILIST > RECOMMENDATION: $recTitle" }
-            SManga(
-                title = recTitle,
-                thumbnail_url = rec["coverImage"]!!.jsonObject["large"]!!.jsonPrimitive.content,
-                initialized = true,
-                url = rec["siteUrl"]!!.jsonPrimitive.content,
-            )
+        return media.flatMap { it.jsonObject["recommendations"]!!.jsonObject["edges"]!!.jsonArray }.mapNotNull { edge ->
+            edge.jsonObject["node"]?.let { node ->
+                node.jsonObject["mediaRecommendation"]?.takeIf { it is JsonObject }?.let { mediaRec ->
+                    val rec = mediaRec.jsonObject
+                    val recTitle = getTitle(rec)
+                    logcat { "ANILIST > RECOMMENDATION: $recTitle" }
+                    rec["siteUrl"]?.jsonPrimitive?.contentOrNull?.let { url ->
+                        SManga(
+                            title = recTitle,
+                            thumbnail_url = rec["coverImage"]?.jsonObject?.get("large")?.jsonPrimitive?.contentOrNull,
+                            initialized = true,
+                            url = url,
+                        )
+                    }
+                }
+            }
         }
     }
 

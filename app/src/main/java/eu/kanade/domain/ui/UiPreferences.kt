@@ -59,6 +59,8 @@ class UiPreferences(
 
     val recommendsInOverflow: Preference<Boolean> = preferenceStore.getBoolean("recommends_in_overflow", false)
 
+    val showHomeOnRecommendations: Preference<Boolean> = preferenceStore.getBoolean("show_home_on_recommendations", true)
+
     val mergeInOverflow: Preference<Boolean> = preferenceStore.getBoolean("merge_in_overflow", true)
 
     val previewsRowCount: Preference<Int> = preferenceStore.getInt("pref_previews_row_count", 4)

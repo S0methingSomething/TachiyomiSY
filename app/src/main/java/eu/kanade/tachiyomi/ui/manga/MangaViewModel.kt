@@ -4,9 +4,12 @@ import android.content.Context
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.util.fastAny
 import androidx.compose.ui.util.fastFilter
 import androidx.compose.ui.util.fastMap
@@ -33,6 +36,7 @@ import eu.kanade.domain.manga.model.PagePreview
 import eu.kanade.domain.manga.model.chaptersFiltered
 import eu.kanade.domain.manga.model.downloadedFilter
 import eu.kanade.domain.manga.model.toSManga
+import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.domain.track.interactor.AddTracks
 import eu.kanade.domain.track.interactor.RefreshTracks
 import eu.kanade.domain.track.interactor.TrackChapter
@@ -52,6 +56,7 @@ import eu.kanade.tachiyomi.data.track.TrackerManager
 import eu.kanade.tachiyomi.source.PagePreviewSource
 import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.getNameForMangaInfo
+import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.source.online.MetadataSource
 import eu.kanade.tachiyomi.source.online.all.MergedSource
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
@@ -65,6 +70,12 @@ import exh.log.xLogD
 import exh.md.utils.FollowStatus
 import exh.metadata.metadata.RaisedSearchMetadata
 import exh.metadata.metadata.base.FlatMetadata
+import exh.pref.RecommendationPreferences
+import exh.recs.components.RecommendationPreviewState
+import exh.related.RelatedManga
+import exh.related.RelatedManga.Companion.isLoading
+import exh.related.RelatedManga.Companion.removeDuplicates
+import exh.related.RelatedManga.Companion.sorted
 import exh.source.MERGED_SOURCE_ID
 import exh.source.getMainSource
 import exh.source.isEhBasedManga
@@ -74,19 +85,24 @@ import exh.util.trimOrNull
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
@@ -97,6 +113,7 @@ import kotlinx.coroutines.withContext
 import logcat.LogPriority
 import mihon.core.metro.AppCoroutineScope
 import mihon.domain.chapter.interactor.FilterChaptersForDownload
+import mihon.domain.manga.model.toDomainManga
 import mihon.domain.source.interactor.UpdateMangaFromRemote
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.preference.CheckboxState
@@ -125,6 +142,7 @@ import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.manga.interactor.GetMangaWithChapters
 import tachiyomi.domain.manga.interactor.GetMergedEntriesById
 import tachiyomi.domain.manga.interactor.GetMergedMangaById
+import tachiyomi.domain.manga.interactor.NetworkToLocalManga
 import tachiyomi.domain.manga.interactor.SetMangaChapterFlags
 import tachiyomi.domain.manga.interactor.SetMangaUserInfo
 import tachiyomi.domain.manga.model.Manga
@@ -132,6 +150,7 @@ import tachiyomi.domain.manga.model.MangaRemoteUpdate
 import tachiyomi.domain.manga.model.MangaWithChapterCount
 import tachiyomi.domain.manga.model.MergedEntry
 import tachiyomi.domain.manga.model.applyFilter
+import tachiyomi.domain.source.model.StubSource
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.track.interactor.GetTracks
 import tachiyomi.domain.track.interactor.UpsertTrack
@@ -175,6 +194,9 @@ class MangaViewModel(
     private val setMangaUserInfo: SetMangaUserInfo,
     private val updateHelper: EHentaiUpdateHelper,
     private val preferenceStore: PreferenceStore,
+    // SY --> (Komikku: related mangas port)
+    private val networkToLocalManga: NetworkToLocalManga,
+    private val recommendationPreferences: RecommendationPreferences,
     // SY <--
     private val getDuplicateLibraryManga: GetDuplicateLibraryManga,
     private val getAvailableScanlators: GetAvailableScanlators,
@@ -280,6 +302,31 @@ class MangaViewModel(
 
     // SY -->
     private val pagePreviewsState = MutableStateFlow<PagePreviewState>(PagePreviewState.Loading)
+    private val _recommendationPreview = MutableStateFlow<RecommendationPreviewState>(RecommendationPreviewState.Empty)
+    val recommendationPreview: StateFlow<RecommendationPreviewState> = _recommendationPreview
+
+    // Komikku: related manga collection. Shared between the details screen and the inline
+    // suggestions subscreen -- kept on its own flow instead of [State.Success] so the upstream
+    // combine stays untouched, and nothing is discarded when the subscreen closes.
+    private val _relatedMangaCollection = MutableStateFlow<List<RelatedManga>?>(null)
+    private val _isRelatedMangasFetched = MutableStateFlow<Boolean?>(null)
+    val isRelatedMangasFetched: StateFlow<Boolean?> = _isRelatedMangasFetched
+    val relatedMangas: StateFlow<List<RelatedManga>?> = combine(
+        _relatedMangaCollection,
+        _isRelatedMangasFetched,
+    ) { relatedMangaCollection, isRelatedMangasFetched ->
+        val manga = successState?.manga ?: return@combine null
+        relatedMangaCollection
+            ?.sorted(manga)
+            ?.removeDuplicates(manga)
+            ?.filter { it.isVisible() }
+            ?.isLoading(isRelatedMangasFetched)
+            // A fetched (but empty) collection means the source offers no suggestions
+            ?: if (isRelatedMangasFetched == true) emptyList() else null
+    }
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.Lazily, null)
+    // SY <--
 
     // Edited info isn't stored in the database, so each edit bumps this to show it
     private val mangaInfoEdits = MutableStateFlow(0)
@@ -287,6 +334,7 @@ class MangaViewModel(
     private val showRecommendationsInOverflow = uiPreferences.recommendsInOverflow.get()
     private val showMergeInOverflow = uiPreferences.mergeInOverflow.get()
     private val previewsRowCount = uiPreferences.previewsRowCount.get()
+    private val showHomeOnRecommendations = uiPreferences.showHomeOnRecommendations.get()
 
     private val mergedData = combine(
         flow { emitAll(getMergedMangaById.subscribe(mangaId)) }.distinctUntilChanged(),
@@ -456,6 +504,7 @@ class MangaViewModel(
             alwaysShowReadingProgress =
             readerPreferences.preserveReadingPosition.get() && mangaAndChapters.manga.isEhBasedManga(),
             previewsRowCount = previewsRowCount,
+            showHomeOnRecommendations = showHomeOnRecommendations,
             // SY <--
         )
     }
@@ -506,6 +555,8 @@ class MangaViewModel(
             } else {
                 pagePreviewsState.value = PagePreviewState.Unused
             }
+            fetchRecommendationPreview(manga, loadedState.source)
+            fetchRelatedMangasFromSource()
             // SY <--
             val needRefreshInfo = !manga.initialized
             val needRefreshChapter = loadedState.chapters.isEmpty()
@@ -550,12 +601,18 @@ class MangaViewModel(
     fun fetchAllFromSource(manualFetch: Boolean = true) {
         viewModelScope.launch {
             isRefreshingData.value = true
+            val manga = getMangaAndChapters.awaitManga(mangaId)
             fetchAllFromSource(
-                manga = getMangaAndChapters.awaitManga(mangaId),
+                manga = manga,
                 manualFetch = manualFetch,
                 fetchDetails = true,
                 fetchChapters = true,
             )
+            // SY -->
+            sourceManager.get(manga.source)?.let {
+                fetchRecommendationPreview(manga, it)
+            }
+            // SY <--
             isRefreshingData.value = false
         }
     }
@@ -861,6 +918,19 @@ class MangaViewModel(
         }
     }
 
+    // SY -->
+    @Composable
+    fun getManga(initialManga: Manga): androidx.compose.runtime.State<Manga> {
+        return produceState(initialValue = initialManga) {
+            getManga.subscribe(initialManga.url, initialManga.source)
+                .filterNotNull()
+                .collectLatest { manga ->
+                    value = manga
+                }
+        }
+    }
+    // SY <--
+
     /**
      * Move the given manga to the category.
      *
@@ -954,6 +1024,105 @@ class MangaViewModel(
                 is GetPagePreviews.Result.Success ->
                     pagePreviewsState.value = PagePreviewState.Success(result.pagePreviews)
                 GetPagePreviews.Result.Unused -> pagePreviewsState.value = PagePreviewState.Unused
+            }
+        }
+    }
+
+    private var recommendationPreviewJob: Job? = null
+
+    private fun fetchRecommendationPreview(manga: Manga, source: Source) {
+        if (uiPreferences.recommendsInOverflow.get()) {
+            _recommendationPreview.value = RecommendationPreviewState.Empty
+            return
+        }
+        val mainSource = source.getMainSource()
+        if (mainSource !is HttpSource) {
+            _recommendationPreview.value = RecommendationPreviewState.Empty
+            return
+        }
+
+        recommendationPreviewJob?.cancel()
+        recommendationPreviewJob = viewModelScope.launch(Dispatchers.IO) {
+            kotlinx.coroutines.delay(400)
+            try {
+                val list = mutableListOf<eu.kanade.tachiyomi.source.model.SManga>()
+                if (mainSource.supportsRelatedMangas) {
+                    list.addAll(mainSource.fetchRelatedMangaList(manga.toSManga()))
+                }
+                if (list.isEmpty() && !mainSource.disableRelatedMangas && !mainSource.disableRelatedMangasBySearch) {
+                    mainSource.getRelatedMangaList(
+                        manga = manga.toSManga(),
+                        exceptionHandler = {},
+                        pushResults = { pair, _ ->
+                            synchronized(list) {
+                                list.addAll(pair.second)
+                            }
+                        },
+                    )
+                }
+                val domainList = list.distinctBy { it.url }
+                    .filter { it.title.isNotBlank() }
+                    .take(15)
+                    .map { it.toDomainManga(mainSource.id) }
+
+                if (domainList.isNotEmpty()) {
+                    val localList = networkToLocalManga(domainList, updateInfo = false)
+                    _recommendationPreview.value = RecommendationPreviewState.Success(
+                        title = mainSource.name,
+                        mangas = localList,
+                    )
+                } else {
+                    _recommendationPreview.value = RecommendationPreviewState.Empty
+                }
+            } catch (e: Exception) {
+                logcat(LogPriority.WARN, e) { "Failed to fetch recommendation preview" }
+                _recommendationPreview.value = RecommendationPreviewState.Empty
+            }
+        }
+    }
+
+    private fun setRelatedMangasFetchedStatus(status: Boolean) {
+        _isRelatedMangasFetched.value = status
+    }
+
+    /**
+     * Requests the website suggestions for the current manga from the source.
+     * Ported from Komikku's [MangaScreenModel.fetchRelatedMangasFromSource]: the results are pushed
+     * into the related manga collection as they arrive, and the inline suggestions subscreen on the
+     * details screen renders whatever is available.
+     */
+    fun fetchRelatedMangasFromSource(onDemand: Boolean = false) {
+        val websiteProvider = recommendationPreferences.providers.get()
+            .firstOrNull { it.id == RecommendationPreferences.PROVIDER_WEBSITE }
+        if ((!onDemand && websiteProvider?.autoExpand != true) || manga?.source == MERGED_SOURCE_ID) return
+
+        // Start fetching related mangas
+        setRelatedMangasFetchedStatus(false)
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val state = successState ?: return@launch
+                if (state.source !is StubSource && websiteProvider?.enabled == true) {
+                    state.source.getRelatedMangaList(
+                        manga = state.manga.toSManga(),
+                        exceptionHandler = { e -> logcat(LogPriority.ERROR, e) },
+                        pushResults = { pair, _ ->
+                            /* Push found related mangas into collection */
+                            val relatedManga = RelatedManga.Success.fromPair(pair) { mangaList ->
+                                mangaList
+                                    .map { it.toDomainManga(state.source.id) }
+                                    .distinctBy { it.url }
+                                    .let { networkToLocalManga(manga = it, updateInfo = false) }
+                            }
+                            _relatedMangaCollection.update { collection ->
+                                collection?.plus(relatedManga) ?: listOf(relatedManga)
+                            }
+                        },
+                    )
+                }
+            } catch (e: Exception) {
+                logcat(LogPriority.ERROR, e)
+            } finally {
+                setRelatedMangasFetchedStatus(true)
             }
         }
     }
@@ -1531,7 +1700,7 @@ class MangaViewModel(
             val pagePreviewsState: PagePreviewState,
             val alwaysShowReadingProgress: Boolean,
             val previewsRowCount: Int,
-            // SY <--
+            val showHomeOnRecommendations: Boolean,
         ) : State {
             val processedChapters by lazy {
                 chapters.applyFilters(manga).toList()

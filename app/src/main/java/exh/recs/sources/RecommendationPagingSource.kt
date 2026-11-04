@@ -8,6 +8,7 @@ import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.all.MangaDex
 import exh.md.similar.MangaDexSimilarPagingSource
 import exh.pref.DelegateSourcePreferences
+import exh.pref.RecommendationPreferences
 import exh.source.getMainSource
 import exh.source.isMdBasedSource
 import kotlinx.serialization.json.Json
@@ -45,6 +46,9 @@ abstract class RecommendationPagingSource(
      */
     open val associatedSourceId: Long? = null
 
+    open var autoExpand: Boolean = false
+    open var orderIndex: Int = 0
+
     companion object {
         fun createSources(
             manga: Manga,
@@ -55,23 +59,62 @@ abstract class RecommendationPagingSource(
             client: OkHttpClient,
             json: Json,
             delegateSourcePreferences: DelegateSourcePreferences,
+            recommendationPreferences: RecommendationPreferences? = null,
         ): List<RecommendationPagingSource> {
+            val providerConfigs = recommendationPreferences?.providers?.get()
+                ?: RecommendationPreferences.defaultProviders
+
+            val enabledConfigs = providerConfigs.filter { it.enabled }
             return buildList {
-                add(AniListPagingSource(manga, networkToLocalManga, getTracks, trackerManager, client, json))
-                add(MangaUpdatesCommunityPagingSource(manga, networkToLocalManga, getTracks, trackerManager, client, json))
-                add(MangaUpdatesSimilarPagingSource(manga, networkToLocalManga, getTracks, trackerManager, client, json))
-                add(MyAnimeListPagingSource(manga, networkToLocalManga, getTracks, trackerManager, client, json))
+                var order = 0
+                for (config in enabledConfigs) {
+                    val pagingSource = when (config.id) {
+                        RecommendationPreferences.PROVIDER_WEBSITE -> {
+                            if (source.supportsRelatedMangas || (!source.disableRelatedMangas && !source.disableRelatedMangasBySearch)) {
+                                WebsiteSuggestionPagingSource(manga, source, networkToLocalManga)
+                            } else {
+                                null
+                            }
+                        }
+                        RecommendationPreferences.PROVIDER_ANILIST -> {
+                            AniListPagingSource(manga, networkToLocalManga, getTracks, trackerManager, client, json)
+                        }
+                        RecommendationPreferences.PROVIDER_MYANIMELIST -> {
+                            MyAnimeListPagingSource(manga, networkToLocalManga, getTracks, trackerManager, client, json)
+                        }
+                        RecommendationPreferences.PROVIDER_MANGAUPDATES_SIMILAR -> {
+                            MangaUpdatesSimilarPagingSource(manga, networkToLocalManga, getTracks, trackerManager, client, json)
+                        }
+                        RecommendationPreferences.PROVIDER_MANGAUPDATES_COMMUNITY -> {
+                            MangaUpdatesCommunityPagingSource(manga, networkToLocalManga, getTracks, trackerManager, client, json)
+                        }
+                        else -> null
+                    }
+                    if (pagingSource != null) {
+                        pagingSource.autoExpand = config.autoExpand
+                        pagingSource.orderIndex = order++
+                        add(pagingSource)
+                    }
+                }
 
                 // Only include MangaDex if the delegate sources are enabled and the source is MD-based
                 if (source.isMdBasedSource() && delegateSourcePreferences.delegateSources.get()) {
-                    add(MangaDexSimilarPagingSource(manga, source.getMainSource() as MangaDex, networkToLocalManga))
+                    add(
+                        MangaDexSimilarPagingSource(manga, source.getMainSource() as MangaDex, networkToLocalManga).apply {
+                            orderIndex = order++
+                        },
+                    )
                 }
 
                 // Only include Comick if the source manga is from there
                 if (source.isComickSource()) {
-                    add(ComickPagingSource(manga, source, networkToLocalManga, client, json))
+                    add(
+                        ComickPagingSource(manga, source, networkToLocalManga, client, json).apply {
+                            orderIndex = order++
+                        },
+                    )
                 }
-            }.sortedWith(compareBy({ it.name }, { it.category.resourceId }))
+            }
         }
     }
 }

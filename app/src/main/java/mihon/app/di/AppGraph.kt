@@ -48,6 +48,7 @@ import eu.kanade.tachiyomi.util.storage.CbzCrypto
 import exh.debug.DebugFunctions
 import exh.eh.EHentaiUpdateWorker
 import exh.pref.DelegateSourcePreferences
+import exh.pref.RecommendationPreferences
 import exh.source.ExhPreferences
 import exh.uconfig.EHConfigurator
 import exh.ui.intercept.InterceptActivity
@@ -135,6 +136,8 @@ interface AppGraph : ViewModelGraph {
     val syncPreferences: SyncPreferences
     val exhPreferences: ExhPreferences
     val delegateSourcePreferences: DelegateSourcePreferences
+    val recommendationPreferences: RecommendationPreferences
+    val recommendationCache: exh.recs.RecommendationCache
     val ehConfigurator: EHConfigurator
     val getAllManga: GetAllManga
     val getChaptersByMangaId: GetChaptersByMangaId

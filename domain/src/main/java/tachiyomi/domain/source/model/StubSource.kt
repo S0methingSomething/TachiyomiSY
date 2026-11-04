@@ -35,6 +35,15 @@ data class StubSource(
     override suspend fun getPageList(chapter: SChapter): List<Page> =
         throw SourceNotInstalledException()
 
+    // SY -->
+    // Ported from Komikku (domain .../source/model/StubSource.kt, // KMK --> block)
+    override suspend fun getRelatedMangaList(
+        manga: SManga,
+        exceptionHandler: (Throwable) -> Unit,
+        pushResults: suspend (relatedManga: Pair<String, List<SManga>>, completed: Boolean) -> Unit,
+    ) = throw SourceNotInstalledException()
+    // SY <--
+
     override fun toString(): String =
         if (!isInvalid) "$name (${lang.uppercase()})" else id.toString()
 

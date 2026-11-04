@@ -382,7 +382,11 @@ insertNetworkManga {
         END,
         remote_memo = excluded.remote_memo,
         state_initialized = :updateDetails
-    WHERE user_favorite_at IS NULL;
+    WHERE user_favorite_at IS NULL
+    -- SY --> (Komikku: updateInfo — only update existing rows when requested)
+    AND :updateInfo;
+    -- SY <--
+
 
     SELECT
         id, source_id, remote_url, remote_title, remote_author, remote_artist, remote_description,

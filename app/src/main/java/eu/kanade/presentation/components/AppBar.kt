@@ -3,6 +3,7 @@ package eu.kanade.presentation.components
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.BasicTextField
@@ -57,7 +58,10 @@ import mihon.icons.materialsymbols.automirroredrounded.ArrowBack
 import mihon.icons.materialsymbols.rounded.Close
 import mihon.icons.materialsymbols.rounded.MoreVert
 import mihon.icons.materialsymbols.rounded.Search
+import mihon.icons.sy.materialsymbols.SYMaterialSymbols
+import mihon.icons.sy.materialsymbols.rounded.Home
 import tachiyomi.i18n.MR
+import tachiyomi.i18n.sy.SYMR
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.clearFocusOnSoftKeyboardHide
 import tachiyomi.presentation.core.util.runOnEnterKeyPressed
@@ -81,6 +85,9 @@ fun AppBar(
     actionModeCounter: Int = 0,
     onCancelActionMode: () -> Unit = {},
     actionModeActions: @Composable RowScope.() -> Unit = {},
+    // SY -->
+    goHome: (() -> Unit)? = null,
+    // SY <--
 
     scrollBehavior: TopAppBarScrollBehavior? = null,
 ) {
@@ -100,6 +107,9 @@ fun AppBar(
         },
         navigateUp = navigateUp,
         navigationIcon = navigationIcon,
+        // SY -->
+        goHome = goHome,
+        // SY <--
         actions = {
             if (isActionMode) {
                 actionModeActions()
@@ -128,6 +138,9 @@ fun AppBar(
     // Action mode
     isActionMode: Boolean = false,
     onCancelActionMode: () -> Unit = {},
+    // SY -->
+    goHome: (() -> Unit)? = null,
+    // SY <--
 
     scrollBehavior: TopAppBarScrollBehavior? = null,
 ) {
@@ -143,11 +156,23 @@ fun AppBar(
                             contentDescription = stringResource(MR.strings.action_cancel),
                         )
                     }
-                } else {
-                    navigateUp?.let {
-                        IconButton(onClick = it) {
-                            UpIcon(navigationIcon = navigationIcon)
+                } else if (navigateUp != null || goHome != null) {
+                    Row {
+                        navigateUp?.let {
+                            IconButton(onClick = it) {
+                                UpIcon(navigationIcon = navigationIcon)
+                            }
                         }
+                        // SY -->
+                        if (goHome != null) {
+                            IconButton(onClick = goHome) {
+                                Icon(
+                                    imageVector = SYMaterialSymbols.Rounded.Home,
+                                    contentDescription = stringResource(SYMR.strings.action_bar_home),
+                                )
+                            }
+                        }
+                        // SY <--
                     }
                 }
             },

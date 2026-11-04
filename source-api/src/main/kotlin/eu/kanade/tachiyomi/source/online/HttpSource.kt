@@ -306,6 +306,72 @@ abstract class HttpSource : CatalogueSource {
     )
     protected open fun mangaDetailsParse(response: Response): SManga = throw UnsupportedOperationException()
 
+    // SY -->
+    // Ported from Komikku (source-api HttpSource.kt)
+
+    /**
+     * Whether parsing related mangas in manga page or extension provide custom related mangas request.
+     *
+     * @default true
+     * @since komikku/extensions-lib 1.6
+     */
+    override val supportsRelatedMangas: Boolean get() = true
+
+    /**
+     * Fetch related mangas for a manga from source/site.
+     *
+     * @since komikku/extensions-lib 1.6
+     * @param manga the current manga to get related mangas.
+     * @return the related mangas for the current manga, or empty if a source doesn't support related mangas.
+     */
+    override suspend fun fetchRelatedMangaList(manga: SManga): List<SManga> {
+        if (!isRelatedMangaListParseAvailable) return emptyList()
+
+        return client.newCall(relatedMangaListRequest(manga))
+            .awaitSuccess()
+            .use { response ->
+                relatedMangaListParse(response)
+            }
+    }
+
+    private val isRelatedMangaListParseAvailable by lazy(LazyThreadSafetyMode.NONE) {
+        try {
+            var clazz: Class<*>? = javaClass
+            while (clazz != null && clazz != HttpSource::class.java) {
+                if (clazz.declaredMethods.any { it.name == "relatedMangaListParse" || it.name == "popularMangaParse" }) {
+                    return@lazy true
+                }
+                clazz = clazz.superclass
+            }
+            false
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Returns the request for get related manga list. Override only if it's needed to override
+     * the url, send different headers or request method like POST.
+     * Normally it's not needed to override this method.
+     *
+     * @since komikku/extensions-lib 1.6
+     * @param manga the manga to look for related mangas.
+     */
+    @Suppress("DEPRECATION")
+    protected open fun relatedMangaListRequest(manga: SManga): Request {
+        return mangaDetailsRequest(manga)
+    }
+
+    /**
+     * Parses the response from the site and returns a list of related mangas.
+     *
+     * @since komikku/extensions-lib 1.6
+     * @param response the response from the site.
+     */
+    @Suppress("DEPRECATION")
+    protected open fun relatedMangaListParse(response: Response): List<SManga> = popularMangaParse(response).mangas
+    // SY <--
+
     /**
      * Returns an observable with the updated chapter list for a manga. Normally it's not needed to
      * override this method.

@@ -3,6 +3,7 @@ package exh.recs
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
@@ -16,9 +17,11 @@ import exh.recs.RecommendsScreen.Args.SingleSourceManga
 import exh.recs.batch.RankedSearchResults
 import exh.recs.components.RecommendsScreen
 import exh.recs.sources.StaticResultPagingSource
+import mihon.app.di.appGraph
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.i18n.sy.SYMR
 import tachiyomi.presentation.core.i18n.stringResource
+import tachiyomi.presentation.core.util.collectAsState
 import java.io.Serializable
 
 /**
@@ -40,6 +43,33 @@ class RecommendsScreen(private val args: Args) : Screen() {
             create(args = args)
         }
         val state by viewModel.state.collectAsState()
+
+        val uiPreferences = remember { context.appGraph.uiPreferences }
+        val showHomeOnRecommendations by uiPreferences.showHomeOnRecommendations.collectAsState()
+        val originScreen = remember(navigator.items) {
+            val items = navigator.items
+            var trailStartIndex = -1
+            for (i in items.lastIndex downTo 0) {
+                val screen = items[i]
+                if (screen is MangaScreen || screen is RecommendsScreen || screen is BrowseRecommendsScreen) {
+                    trailStartIndex = i
+                } else {
+                    break
+                }
+            }
+            if (trailStartIndex in 0 until items.lastIndex) {
+                items[trailStartIndex]
+            } else {
+                null
+            }
+        }
+        val showHome = showHomeOnRecommendations && originScreen != null
+        val goHome = {
+            if (originScreen != null) {
+                navigator.popUntil { it == originScreen }
+            }
+            Unit
+        }.takeIf { showHome }
 
         val onClickItem = { manga: Manga ->
             navigator.push(
@@ -88,6 +118,7 @@ class RecommendsScreen(private val args: Args) : Screen() {
             },
             onClickItem = onClickItem,
             onLongClickItem = onLongClickItem,
+            goHome = goHome,
         )
     }
 }
